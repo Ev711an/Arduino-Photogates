@@ -73,7 +73,7 @@ int previousReadingS1 = HIGH;
  * displayMenu displays text, and does NOT overwrite anything on the screen
  */
 void displayTime(float textSize, // The Text Size
-displayNum); //Time to be displayed
+unsigned long displayNum); //Time to be displayed
 
 void displayMenu(float textSize, // Text Size
 int cursorX, //Placement of cursor, x axis
