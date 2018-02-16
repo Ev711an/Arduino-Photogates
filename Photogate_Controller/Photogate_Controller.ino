@@ -21,7 +21,13 @@
  *
  */
 
-
+/**
+ * * * * * * * * * * * * * * * * * Version 0.1.1 * * * * * * * * * * * * * * * * *
+ * Changed Reset Button Pin to pin 2, for button c on the Wing. Fixed an error caused
+ * by a while loop once the stopwatch ended, where after ended the time, the program
+ * would crash and restart. Now an if statement checks for an ended state, then displays
+ * a time if currently in that ended state.
+ */
 
 /**
  * These libraries are required to use the OLED display
@@ -43,13 +49,13 @@ Adafruit_SSD1306 display = Adafruit_SSD1306();
  * Change resetButton to change which pin is connected to the reset button
  */
 const int modeButton = 0;
-const int resetButton = 16;
+const int resetButton = 2;
 
 /**
  * Photo Gate Pin Declarations - 
  * Change these to change which pin is connected to each photogate.
  */
-const int photoGate1 = 14;
+const int photoGate1 = 13;
 const int photoGate2 = 12;
 
 /**
@@ -59,6 +65,7 @@ unsigned long stopWatchStart = 0;
 unsigned long stopWatchEnd = 0;
 unsigned long stopWatchTime = 0;
 int stopWatchState = LOW;
+int stopWatchEndState = LOW;
 
 /**
  * These Variables ensure that the program only stays within its current running stop watch.
@@ -73,7 +80,7 @@ int previousReadingS1 = HIGH;
  * displayMenu displays text, and does NOT overwrite anything on the screen
  */
 void displayTime(float textSize, // The Text Size
-displayNum); //Time to be displayed
+unsigned long displayNum); //Time to be displayed
 
 void displayMenu(float textSize, // Text Size
 int cursorX, //Placement of cursor, x axis
@@ -88,7 +95,7 @@ float TextSize = 1;
 /**
  * Mode variable used for changing between singlegate(mode 1) and doublegate(mode 0) modes.
  */
-int mode = 0;
+int mode = 1;
 
 /**
  * setup is called once at startup; used for any initialization code
@@ -100,10 +107,7 @@ void setup() {
    */
   display.begin(SSD1306_SWITCHCAPVCC , 0x3C);
   display.clearDisplay(); 
-  displayMenu(TextSize , 0 , 12 , "Screen Test");
-  delay(500);
-  display.clearDisplay();
-  display.display();
+  displayMenu(TextSize , 0 , 12 , "Initializing...");
    
    /*
     * Button Pin initialization
@@ -117,6 +121,12 @@ void setup() {
    pinMode(photoGate1, INPUT);
    pinMode(photoGate2, INPUT);
 
+   /**
+    * Clears display
+    */
+   delay(500);
+   display.clearDisplay();
+   display.display();
 }
 
 /**
@@ -127,9 +137,9 @@ void loop() {
   /**
    * displays opening menu texts
    */
-  if (stopWatchState == LOW) {
+  if (stopWatchState == LOW && stopWatchEndState == LOW) {
   displayMenu(1 , 0 , 0 , "To select mode, press");
-  displayMenu(1 , 0 , 9 , "the mode button.");
+  displayMenu(1 , 0 , 9 , "A.");
   displayMenu(1 , 0 , 18 , "currently:");
 
   /**
@@ -152,11 +162,22 @@ void loop() {
   /**
    * displays the current mode after opening menu text.
    */
-  switch (mode) {
-    case 1 : displayMenu(1 , 60 , 18 , "SingleGate");
-    break;
-    case 0 : displayMenu(1 , 60 , 18 , "DoubleGate");
-  }
+    switch (mode) {
+      case 1 : displayMenu(1 , 60 , 18 , "SingleGate");
+      break;
+      case 0 : displayMenu(1 , 60 , 18 , "DoubleGate");
+    }
+  } 
+
+  if (stopWatchEndState == HIGH) {
+    displayTime(TextSize , stopWatchTime);
+    displayMenu(1 , 0 , 9 , "Press C to");
+    displayMenu(1 , 0 , 18 , "return to menu.");
+
+    if (digitalRead(resetButton) == LOW) {
+      stopWatchEndState = LOW;
+      display.clearDisplay();
+    }
   }
   
   if (mode == 1) { //mode check
@@ -165,7 +186,7 @@ void loop() {
      * Takes the int 'readingS1' from the first photogate, then checks to see if an object has past in front of it, and, if so, starts stopwatch.
      */
     int readingS1 = digitalRead(photoGate1);
-    if (readingS1 == LOW && previousReadingS1 == HIGH) { //photoGate and stopWatchState check
+    if (readingS1 == LOW && previousReadingS1 == HIGH && stopWatchEndState == LOW) { //photoGate and stopWatchState check
       stopWatchStart = millis();
       previousReadingS1 = LOW;
       stopWatchState = HIGH;
@@ -177,13 +198,13 @@ void loop() {
     if (stopWatchState == HIGH && readingS1 == HIGH) {
       stopWatchEnd = millis();
       stopWatchTime = stopWatchEnd - stopWatchStart;
-      displayTime(1 , stopWatchTime);
+      
       previousReadingS1 = readingS1;
       stopWatchState = LOW;
-      while (digitalRead(resetButton) == HIGH) { //will stay in while until reset button is pressed
-        displayMenu(1 , 0 , 9 , "Press Reset to");
-        displayMenu(1 , 0 , 18 , "return to menu.");
-      }
+      stopWatchEndState = HIGH;
+     // while (digitalRead(resetButton) == HIGH) { //will stay in while until reset button is pressed
+        
+      //}
       display.clearDisplay();
     }
     
@@ -200,7 +221,7 @@ void loop() {
     /**
      * starts stopwatch if the stopwatch is not already running, and photogate1 is triggered.
      */
-    if ((readingD1 == LOW) && stopWatchState == LOW && checkD2 == LOW) {
+    if ((readingD1 == LOW) && stopWatchState == LOW && checkD2 == LOW && stopWatchEndState == LOW) {
       stopWatchStart = millis();
       stopWatchState = HIGH;
       checkD1 = HIGH;
@@ -213,14 +234,10 @@ void loop() {
       stopWatchEnd = millis();
       stopWatchTime = stopWatchEnd - stopWatchStart;
       displayTime(1 , stopWatchTime);
+      stopWatchState = LOW;
+      stopWatchEndState = HIGH;
       checkD1 = LOW;
-      while (digitalRead(resetButton) == HIGH) {
-        displayMenu(1 , 0 , 9 , "Press Reset to");
-        displayMenu(1 , 0 , 18 , "return to menu.");
-        stopWatchState = LOW;
-      }
       display.clearDisplay();
-      
     }
 
     /**
@@ -232,7 +249,7 @@ void loop() {
     /**
      * starts stopwatch if the stopwatch is not already running, and photogate2 is triggered.
      */
-    if ((readingD2 == LOW) && stopWatchState == LOW && checkD1 == LOW) {
+    if ((readingD2 == LOW) && stopWatchState == LOW && checkD1 == LOW && stopWatchEndState == LOW) {
       stopWatchStart = millis();
       stopWatchState = HIGH;
       checkD2 = HIGH;
@@ -245,24 +262,14 @@ void loop() {
       stopWatchEnd = millis();
       stopWatchTime = stopWatchEnd - stopWatchStart;
       displayTime(1 , stopWatchTime);
+      stopWatchState = LOW;
+      stopWatchEndState = HIGH;
       checkD2 = LOW;
-      while (digitalRead(resetButton) == HIGH) {
-        displayMenu(1 , 0 , 9 , "Press Reset to");
-        displayMenu(1 , 0 , 18 , "return to menu.");
-        stopWatchState = LOW;
-      }
       display.clearDisplay();
       
     }
     
   } 
-  /**
-   * Displays a running time if the stopwatch is currently running, but not if it isn't.
-   */
-  if (stopWatchState == HIGH) {
-    unsigned long currentTime = millis() - stopWatchStart;
-    displayTime(1 , currentTime);
-  }
   
 }
 
@@ -273,12 +280,9 @@ void loop() {
 void displayTime(float textSize, // IN // determines text size
 unsigned long displayNum) // IN // number to be displayed
 {
-  display.clearDisplay();
   display.setTextSize(textSize);
   display.setTextColor(WHITE);
   display.setCursor(0, 0);
-  display.println("Time = ");
-  display.setCursor(50, 0);
   display.print(displayNum * .001);
   display.display();
 }
